@@ -7,6 +7,26 @@ It is not an emulator: the game's own code runs directly on the Apple chip, with
 > [!TIP]
 > **Prefer an app to the command line?** [NX2Apple](https://github.com/LNPANDY/NX2Apple) is a community Mac app that builds your games for the iPhone, iPad or Mac, keeps the Mac games in a library and starts them with their settings. It is a separate project that follows this one; this page describes nxnative's own command-line way. Building a front end of your own: [Front ends](docs/frontends.md).
 
+## How It Works: Native Execution Across Platforms
+
+Unlike traditional emulators that translate CPU instructions at runtime through a heavy JIT (Just-In-Time) compiler, **nxnative runs the game's actual machine code directly on your processor**, supported by a lightweight Host that implements Horizon OS system calls (SVCs) and translates graphics API calls:
+
+| Platform | CPU Architecture | Execution Mode | Graphics Backend | Page Size | UI / Packaging |
+|---|---|---|---|---|---|
+| **iOS / iPadOS** | ARM64 (A17 Pro, M1+) | Direct native execution | Metal (`nvn_mtl.m`) | 16 KB (realigned) | `.ipa` / Sideloading (UIKit) |
+| **macOS** | ARM64 (Apple Silicon) | Direct native execution | Metal (`nvn_mtl.m`) | 16 KB (realigned) | Standalone Mac App (`.app`) |
+| **Android** | ARM64 (Snapdragon, Dimensity, Tensor) | Direct native execution | Vulkan (`nvn_vk_android.c`) | 4 KB (native match) | Android APK (`SurfaceView` + JNI) |
+| **Windows** | x86_64 / ARM64 | Win32 Host Runtime | HLE / Vulkan Thunks | 4 KB (OS native) | Console Executable (`dmhost.exe`) |
+
+### Key Architectural Highlights
+
+- **Zero-Overhead ARM64 CPU Execution (Android & Apple)**:
+  Because the Nintendo Switch (NVIDIA Tegra X1) and modern mobile devices (iPhone, iPad, and Android smartphones) share the **ARM64 (ARMv8-A)** architecture, the game's code runs at full hardware speed with zero CPU emulation overhead. On Android, the Linux kernel uses native **4 KB memory pages**, matching the Switch's hardware memory architecture identically.
+- **Horizon OS Host (`dm/host`)**:
+  The Host answers the game's requests for memory allocation (`mmap`/`VirtualAlloc`), multi-threading (`pthreads`/Win32 threads), address arbiters, condition variables, transactional saves (`hle_fs.c`), audio decoding (Ogg Vorbis), and video playback (VP8/VP9 via `libvpx`).
+- **Graphics Translation (`dm/gfx`)**:
+  Switch titles draw using NVN (or Vulkan/OpenGL). The graphics layer intercepts all 537 NVN entry points and commands, replaying them on **Metal** (for Apple devices) or **Vulkan** (for Android and cross-platform systems). Shaders are compiled offline from Maxwell ISA to SPIR-V and MSL, eliminating runtime shader compilation stutter.
+
 ## Acknowledgements
 
 This project is built on other people's work:
