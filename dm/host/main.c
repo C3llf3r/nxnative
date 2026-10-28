@@ -87,7 +87,11 @@ static void host_preload(int argc, char **argv) {
     }
     { void dm_term_install(void); dm_term_install(); }   // SIGTERM graceful exit (hle_lifecycle.c)
     { void crash_set_dump_hook(void (*)(void)); void svc_thread_dump(void); crash_set_dump_hook(svc_thread_dump); }   // Dump guest thread state on a crash
+#if defined(_MSC_VER)
+    const char *names[128 + DM_GAME_NMOD]; int n = 0;
+#else
     const char *names[argc + DM_GAME_NMOD]; int n = 0;
+#endif
     int i = 2;
     for (; i < argc && strcmp(argv[i], "--"); i++) names[n++] = argv[i];
     if (i < argc && !strcmp(argv[i], "--")) for (i++; i < argc && g_argc < 63; i++) g_argv[g_argc++] = argv[i];

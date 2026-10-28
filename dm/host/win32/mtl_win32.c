@@ -18,6 +18,8 @@ void mtl_vbuf_stats(uint64_t *resolve, uint64_t *reuse, uint64_t *set, uint64_t 
 void mtl_set_depth_zero(int on) { (void)on; }
 void mtl_set_origin_lower_left(int on) { (void)on; }
 void mtl_set_queue_origin_lower_left(int on) { (void)on; }
+void mtl_queue_activate(uint64_t s) { (void)s; }
+void mtl_queue_forget(uint64_t s) { (void)s; }
 void bf_want_note(const char *key) { (void)key; }
 
 void mtl_pool_add(const void *mem, uint64_t size) { (void)mem; (void)size; }

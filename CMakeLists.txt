@@ -34,7 +34,14 @@ add_custom_target(generate_game_profile DEPENDS "${GAME_PROFILE_H}")
 # Rutas de inclusión
 if(WIN32)
     include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/win32/compat")
+elseif(ANDROID)
+    include_directories(BEFORE
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/android/compat"
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/android"
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/gfx/android"
+    )
 endif()
+
 include_directories(
     "${GAME_GEN_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/host"
@@ -56,7 +63,7 @@ list(FILTER LIBVPX_SOURCES EXCLUDE REGEX ".*/test/.*")
 list(FILTER LIBVPX_SOURCES EXCLUDE REGEX ".*/tools/.*")
 
 # Filtrar según la arquitectura de CPU
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64" OR MSVC_CXX_ARCHITECTURE_ID MATCHES "ARM64")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64" OR MSVC_CXX_ARCHITECTURE_ID MATCHES "ARM64" OR ANDROID_ABI MATCHES "arm64-v8a")
     list(FILTER LIBVPX_SOURCES EXCLUDE REGEX ".*/x86/.*")
 else()
     list(FILTER LIBVPX_SOURCES EXCLUDE REGEX ".*/arm/.*")
@@ -84,7 +91,6 @@ file(GLOB HOST_COMMON_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/probe.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/thread.c"
-    # stb_vorbis.c included in hle_movie.c
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/gfx/tex/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/gfx/nvn/hle_nvn.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/dm/gfx/nvn/nvn_dirty.c"
@@ -123,6 +129,30 @@ if(APPLE)
         "-framework UniformTypeIdentifiers"
     )
     target_compile_options(dmhost PRIVATE -fobjc-arc -Wall -Wno-unused-function)
+    add_dependencies(dmhost generate_game_profile)
+
+elseif(ANDROID)
+    # Plataforma Android
+    message(STATUS "Configurando target nxnative como librería compartida para Android")
+    add_definitions(-D__ANDROID__ -DANDROID)
+
+    set(ANDROID_SRC
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/android/compat_android.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/host/android/front_android.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/dm/gfx/android/nvn_vk_android.c"
+    )
+
+    add_library(nxnative SHARED ${HOST_COMMON_SRC} ${ANDROID_SRC})
+    target_compile_options(nxnative PRIVATE -Wall -Wno-unused-function -Wno-unused-variable)
+    target_link_libraries(nxnative PRIVATE
+        vpx
+        log
+        android
+        vulkan
+        m
+    )
+    add_dependencies(nxnative generate_game_profile)
+
 elseif(WIN32)
     # Plataforma Windows
     message(STATUS "Configurando target dmhost para Windows")
@@ -147,6 +177,5 @@ elseif(WIN32)
         onecore
         ws2_32
     )
+    add_dependencies(dmhost generate_game_profile)
 endif()
-
-add_dependencies(dmhost generate_game_profile)

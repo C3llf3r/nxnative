@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">nxnative</string>
+    <string name="select_game_folder">Seleccionar Carpeta del Juego</string>
+    <string name="no_game_selected">Ningún juego cargado</string>
+    <string name="start_game">Iniciar</string>
+    <string name="stop_game">Detener</string>
+</resources>

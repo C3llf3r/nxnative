@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black">
+
+    <!-- Game Surface View for Vulkan presentation -->
+    <com.nxnative.app.GameSurfaceView
+        android:id="@+id/gameSurface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- On-screen Virtual Controller Overlay -->
+    <com.nxnative.app.OverlayControllerView
+        android:id="@+id/controllerOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Top floating HUD bar for folder selection and stats -->
+    <LinearLayout
+        android:id="@+id/hudLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="8dp"
+        android:background="#88000000"
+        android:orientation="horizontal"
+        android:padding="6dp">
+
+        <Button
+            android:id="@+id/btnSelectGame"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="@color/switch_red"
+            android:text="@string/select_game_folder"
+            android:textColor="@color/white"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/no_game_selected"
+            android:textColor="@color/white"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+</FrameLayout>
