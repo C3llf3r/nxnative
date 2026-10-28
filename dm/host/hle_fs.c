@@ -56,7 +56,11 @@ static int g_nmnt;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_path_lock = PTHREAD_MUTEX_INITIALIZER;
 static void path_unlock(pthread_mutex_t **m) { pthread_mutex_unlock(*m); }
+#if defined(_MSC_VER)
+#define PATH_LOCK()
+#else
 #define PATH_LOCK() pthread_mutex_t *path_guard __attribute__((cleanup(path_unlock))) = &g_path_lock; pthread_mutex_lock(path_guard)
+#endif
 static uint8_t g_fmode[65536];              // fd → open mode
 static _Atomic uint16_t g_ftxn[65536];       // fd → 1-based canonical transaction index, or 0
 static _Atomic int g_save_writes;           // number of writes on the save mount (shared by the injection point and the commit log)
@@ -98,7 +102,9 @@ static int save_txn_from_path(const char *hp) {
     return best;
 }
 // The default weak implementation only logs (Mac); the iOS front end provides a strong implementation of the same name that shows a native alert. Called on the game thread, the front end switches to the main thread itself
+#if !defined(_WIN32)
 __attribute__((weak)) void front_save_failed(int err) { LOG("front_save_failed(errno=%d): no front end attached (default weak implementation)", err); }
+#endif
 // DM_FSLOG=<file>: each ReadFile logs one TSV line "seconds since boot\tguest path\toffset\tlength\tguest buffer address" (which bytes boot read, for offline reverse lookup against the manifest)
 static FILE *g_fslog; static char *g_fdpath[4096]; static pthread_mutex_t g_fslog_lock = PTHREAD_MUTEX_INITIALIZER;
 static void fslog_init(void) { static int done; if (done) return; done = 1; const char *e = getenv("DM_FSLOG"); if (e && !(g_fslog = fopen(e, "w"))) die("cannot open DM_FSLOG %s", e); if (g_fslog) setvbuf(g_fslog, NULL, _IOLBF, 0); }   // line-buffered: runs end at the time-limit alarm or a crash, which never flush stdio
@@ -106,7 +112,11 @@ static void fslog_init(void) { static int done; if (done) return; done = 1; cons
 static const char *envdir(const char *var, const char *rel, char *buf, size_t n) {
     const char *v = getenv(var);
     if (v) return v;
-    snprintf(buf, n, "%s%s/%s", getenv("DM_ROOT") ?: getenv("HOME"), getenv("DM_ROOT") ? "" : "/dm-work", rel); return buf;
+    const char *root = getenv("DM_ROOT");
+    if (!root) root = getenv("USERPROFILE");
+    if (!root) root = getenv("HOME");
+    if (!root) root = ".";
+    snprintf(buf, n, "%s%s/%s", root, getenv("DM_ROOT") ? "" : "/dm-work", rel); return buf;
 }
 
 // Steps that end in a failed write: test injection DM_TEST_FS_FAILAT=<point>[:<count>][,...] -- in a save transaction, mountclone (clone the work directory at mount),
@@ -609,8 +619,13 @@ static Result commit_mount_locked(int i, int *notify_error) {
     int txn = g_mnt[i].txn_root;
     if (txn < 0 || txn >= g_nmnt) return RES_FAIL;
     pthread_once(&g_txn_lock_once, txn_locks_init);
+#if defined(_MSC_VER)
+    pthread_rwlock_wrlock(&g_txn_lock[txn]);
+    __try {
+#else
     pthread_rwlock_wrlock(&g_txn_lock[txn]);
     pthread_rwlock_t *txn_guard __attribute__((cleanup(txn_unlock))) = &g_txn_lock[txn];
+#endif
     uint64_t tc1 = clock_gettime_nsec_np(CLOCK_MONOTONIC), tw0 = atomic_exchange(&g_mnt[txn].first_write_ns, 0);
     int perr = atomic_exchange(&g_mnt[txn].poison, 0);
     if (perr) {                                                         // a write failed in this transaction: refuse the commit, discard the working directory
@@ -650,6 +665,11 @@ static Result commit_mount_locked(int i, int *notify_error) {
             (unsigned long long)((tc2 - tc1) / 1000), (unsigned long long)(tw0 ? (tc2 - tw0) / 1000 : 0)); atomic_fetch_add(&g_save_commits, 1);
     }
     return r;
+#if defined(_MSC_VER)
+    } __finally {
+        pthread_rwlock_unlock(&g_txn_lock[txn]);
+    }
+#endif
 }
 HLE_FORCE("_ZN2nn2fs6CommitEPKc", "fsp-srv; transactional save: the whole work directory tree is cloned, then swapped atomically with the committed directory (renamex_np RENAME_SWAP)", Result, h_fs_Commit, const char *name) {
     PATH_LOCK(); pthread_mutex_lock(&g_lock);
@@ -765,8 +785,13 @@ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", 
 HLE_FORCE("_ZN2nn2fs9WriteFileENS0_10FileHandleElPKvmRKNS0_11WriteOptionE", "fsp-srv → pwrite(2)", Result, h_fs_WriteFile, uint64_t h, int64_t off, const void *buf, size_t sz, const void *opt) {
     if (!h || IMG_H(h)) return RES_FAIL;
     int fd = (int)h & 0xffff; uint16_t token = atomic_load(&g_ftxn[fd]); int txn = token ? token - 1 : -1;
+#if defined(_MSC_VER)
+    if (txn >= 0) pthread_rwlock_rdlock(&g_txn_lock[txn]);
+    __try {
+#else
     pthread_rwlock_t *txn_guard __attribute__((cleanup(txn_unlock))) = NULL;
     if (txn >= 0) { txn_guard = &g_txn_lock[txn]; pthread_rwlock_rdlock(txn_guard); }
+#endif
     (void)opt; size_t put = 0;
     if (txn >= 0) {                                                     // Save write injection point (for deterministic regression; only writes on the save mount are counted)
         pthread_once(&g_save_test_once, save_test_init);
@@ -782,6 +807,11 @@ HLE_FORCE("_ZN2nn2fs9WriteFileENS0_10FileHandleElPKvmRKNS0_11WriteOptionE", "fsp
         put += r;
     }
     return RES_OK;
+#if defined(_MSC_VER)
+    } __finally {
+        if (txn >= 0) pthread_rwlock_unlock(&g_txn_lock[txn]);
+    }
+#endif
 }
 HLE_FORCE("_ZN2nn2fs11GetFileSizeEPlNS0_10FileHandleE", "fsp-srv → fstat(2)", Result, h_fs_GetFileSize, int64_t *out, uint64_t h) {
     if (!h) return RES_FAIL;
@@ -792,11 +822,22 @@ HLE_FORCE("_ZN2nn2fs11GetFileSizeEPlNS0_10FileHandleE", "fsp-srv → fstat(2)", 
 HLE_FORCE("_ZN2nn2fs11SetFileSizeENS0_10FileHandleEl", "fsp-srv → ftruncate(2)", Result, h_fs_SetFileSize, uint64_t h, int64_t sz) {
     if (!h || IMG_H(h)) return RES_FAIL;
     int fd = (int)h & 0xffff; uint16_t token = atomic_load(&g_ftxn[fd]); int txn = token ? token - 1 : -1;
+#if defined(_MSC_VER)
+    if (txn >= 0) pthread_rwlock_rdlock(&g_txn_lock[txn]);
+    __try {
+        if (!ftruncate((int)h, sz)) return RES_OK;
+        if (txn >= 0) save_poison_txn(txn, errno);
+        return err_res("ftruncate", "fd");
+    } __finally {
+        if (txn >= 0) pthread_rwlock_unlock(&g_txn_lock[txn]);
+    }
+#else
     pthread_rwlock_t *txn_guard __attribute__((cleanup(txn_unlock))) = NULL;
     if (txn >= 0) { txn_guard = &g_txn_lock[txn]; pthread_rwlock_rdlock(txn_guard); }
     if (!ftruncate((int)h, sz)) return RES_OK;
     if (txn >= 0) save_poison_txn(txn, errno);
     return err_res("ftruncate", "fd");
+#endif
 }
 HLE_FORCE("_ZN2nn2fs9FlushFileENS0_10FileHandleE", "fsp-srv; host writes are already in the page cache, flushing is a no-op", Result, h_fs_FlushFile, uint64_t h) { (void)h; return RES_OK; }
 HLE_FORCE("_ZN2nn2fs9CloseFileENS0_10FileHandleE", "fsp-srv → close(2)", void, h_fs_CloseFile, uint64_t h) {

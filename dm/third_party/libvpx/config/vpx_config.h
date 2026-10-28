@@ -10,6 +10,64 @@
 #define VPX_CONFIG_H
 #define RESTRICT    
 #define INLINE      inline
+
+#if defined(_WIN32)
+#if defined(_M_ARM64) || defined(__aarch64__)
+#define VPX_ARCH_ARM 1
+#define VPX_ARCH_AARCH64 1
+#define VPX_ARCH_X86 0
+#define VPX_ARCH_X86_64 0
+#define HAVE_NEON 1
+#else
+#define VPX_ARCH_ARM 0
+#define VPX_ARCH_AARCH64 0
+#define VPX_ARCH_X86 0
+#define VPX_ARCH_X86_64 0
+#define HAVE_NEON 0
+#endif
+#define VPX_ARCH_MIPS 0
+#define VPX_ARCH_PPC 0
+#define VPX_ARCH_LOONGARCH 0
+#define HAVE_NEON_ASM 0
+#define HAVE_NEON_DOTPROD 0
+#define HAVE_NEON_I8MM 0
+#define HAVE_SVE 0
+#define HAVE_SVE2 0
+#define HAVE_MIPS32 0
+#define HAVE_DSPR2 0
+#define HAVE_MSA 0
+#define HAVE_MIPS64 0
+#define HAVE_X86_ASM 0
+#define HAVE_MMX 0
+#define HAVE_SSE 0
+#define HAVE_SSE2 0
+#define HAVE_SSE3 0
+#define HAVE_SSSE3 0
+#define HAVE_SSE4_1 0
+#define HAVE_AVX 0
+#define HAVE_AVX2 0
+#define HAVE_AVX512 0
+#define HAVE_VSX 0
+#define HAVE_MMI 0
+#define HAVE_LSX 0
+#define HAVE_LASX 0
+#define HAVE_VPX_PORTS 1
+#define HAVE_PTHREAD_H 0
+#define HAVE_PTHREAD_SETNAME_NP 0
+#define HAVE_UNISTD_H 0
+#define CONFIG_DEPENDENCY_TRACKING 1
+#define CONFIG_EXTERNAL_BUILD 0
+#define CONFIG_INSTALL_DOCS 0
+#define CONFIG_INSTALL_BINS 0
+#define CONFIG_INSTALL_LIBS 1
+#define CONFIG_INSTALL_SRCS 0
+#define CONFIG_DEBUG 0
+#define CONFIG_GPROF 0
+#define CONFIG_GCOV 0
+#define CONFIG_RVCT 0
+#define CONFIG_GCC 0
+#define CONFIG_MSVS 1
+#else
 #define VPX_ARCH_ARM 1
 #define VPX_ARCH_AARCH64 1
 #define VPX_ARCH_MIPS 0
@@ -57,6 +115,8 @@
 #define CONFIG_RVCT 0
 #define CONFIG_GCC 1
 #define CONFIG_MSVS 0
+#endif
+
 #define CONFIG_PIC 1
 #define CONFIG_BIG_ENDIAN 0
 #define CONFIG_CODEC_SRCS 0
@@ -106,4 +166,5 @@
 #define CONFIG_EMULATE_HARDWARE 0
 #define CONFIG_NON_GREEDY_MV 0
 #define CONFIG_COLLECT_COMPONENT_TIMING 0
+#include "vpx_neon_redirect.h"
 #endif /* VPX_CONFIG_H */

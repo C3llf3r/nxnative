@@ -3,5 +3,14 @@
 #pragma once
 #include <stdint.h>
 
-static inline uint64_t nvn_timestamp_from_ns(uint64_t ns) { return (uint64_t)((__uint128_t)ns * 384 / 625); }
-static inline uint64_t nvn_timestamp_to_ns(uint64_t ticks) { return (uint64_t)((__uint128_t)ticks * 625 / 384); }
+static inline uint64_t nvn_timestamp_from_ns(uint64_t ns) {
+    uint64_t q = ns / 625;
+    uint64_t r = ns % 625;
+    return q * 384 + (r * 384) / 625;
+}
+
+static inline uint64_t nvn_timestamp_to_ns(uint64_t ticks) {
+    uint64_t q = ticks / 384;
+    uint64_t r = ticks % 384;
+    return q * 625 + (r * 625) / 384;
+}

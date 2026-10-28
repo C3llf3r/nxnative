@@ -66,10 +66,17 @@ HLE_FORCE("_ZN2nn4time23StandardUserSystemClock9to_time_tERKNSt3__16chrono10time
 HLE_FORCE("_ZN2nn4time14ToCalendarTimeEPNS0_12CalendarTimeEPNS0_22CalendarAdditionalInfoERKNS0_9PosixTimeE",
           "time zone rules of the time service; uses the host localtime_r instead", Result, h_time_ToCalendarTime, CalendarTime *ct, CalendarAdditionalInfo *ai, const int64_t *pt) {
     time_t t = *pt; struct tm tm; localtime_r(&t, &tm);
-    static int once; if (!once++) LOG("ToCalendarTime: first conversion %lld → %04d-%02d-%02d %02d:%02d (time zone %s, offset %ld s)", (long long)t, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_zone ? tm.tm_zone : "?", (long)tm.tm_gmtoff);
+#if defined(_WIN32)
+    long gmtoff = 0; _get_timezone(&gmtoff); gmtoff = -gmtoff + (tm.tm_isdst > 0 ? 3600 : 0);
+    const char *tz_str = _tzname[tm.tm_isdst > 0 ? 1 : 0];
+#else
+    const char *tz_str = tm.tm_zone;
+    long gmtoff = tm.tm_gmtoff;
+#endif
+    static int once; if (!once++) LOG("ToCalendarTime: first conversion %lld → %04d-%02d-%02d %02d:%02d (time zone %s, offset %ld s)", (long long)t, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tz_str ? tz_str : "?", gmtoff);
     if (ct) *ct = (CalendarTime){(int16_t)(tm.tm_year + 1900), (int8_t)(tm.tm_mon + 1), (int8_t)tm.tm_mday, (int8_t)tm.tm_hour, (int8_t)tm.tm_min, (int8_t)tm.tm_sec, 0};
-    if (ai) { memset(ai, 0, sizeof *ai); ai->wday = tm.tm_wday; ai->yday = tm.tm_yday; strlcpy(ai->tzname, tm.tm_zone ? tm.tm_zone : "UTC", sizeof ai->tzname);
-              ai->dst = tm.tm_isdst > 0; ai->offset = (int32_t)tm.tm_gmtoff; }
+    if (ai) { memset(ai, 0, sizeof *ai); ai->wday = tm.tm_wday; ai->yday = tm.tm_yday; strlcpy(ai->tzname, tz_str ? tz_str : "UTC", sizeof ai->tzname);
+              ai->dst = tm.tm_isdst > 0; ai->offset = (int32_t)gmtoff; }
     return RES_OK;
 }
 // Explicit time zone rules (Monster Hunter Rise, SDK 11): LoadTimeZoneRule reads the rule from the time service; the host keeps the game's rule buffer untouched and converts with localtime_r as above
@@ -91,7 +98,11 @@ HLE_FORCE("_ZN2nn4time13ClockSnapshot29CreateWithStandardSystemClockEPS1_", "sna
     memcpy(s + 0x40, &now, 8);
     h_time_ToCalendarTime((CalendarTime *)(s + 0x50), (CalendarAdditionalInfo *)(s + 0x60), &now);
     memcpy(s + 0x90, tp, 0x18);
+    #if defined(_WIN32)
+    _tzset(); strlcpy((char *)s + 0xa8, _tzname[0] && *_tzname[0] ? _tzname[0] : "UTC", 0x24);
+#else
     tzset(); strlcpy((char *)s + 0xa8, tzname[0] && *tzname[0] ? tzname[0] : "UTC", 0x24);
+#endif
     s[0xcd] = 1;   // The SDK passes type 1 for standard snapshots, 2 for adjustable snapshots; 0 is uninitialized.
     return RES_OK;
 }

@@ -325,8 +325,13 @@ static int shaking(uint64_t t) { return t >= atomic_load(&g_shake_t0) && t < ato
 // DM_MOTION_GAIN sets the tilt correction (default 0.5); DM_MOTION_LOG=1 logs player 1's mapped sample once a second, for checking the axes
 enum { MOTION_STALE_NS = 300000000 };
 typedef struct { pthread_mutex_t mu; motion_state st; uint64_t last_ns, received_ns, logged; } live_motion;
+#if defined(_MSC_VER) && !defined(__clang__)
+static live_motion g_motion[DM_PLAYERS];
+static live_motion g_hid_motion[DM_PLAYERS];
+#else
 static live_motion g_motion[DM_PLAYERS] = {[0 ... DM_PLAYERS - 1] = {.mu = PTHREAD_MUTEX_INITIALIZER}};
 static live_motion g_hid_motion[DM_PLAYERS] = {[0 ... DM_PLAYERS - 1] = {.mu = PTHREAD_MUTEX_INITIALIZER}};
+#endif
 static live_motion g_phone_motion = {.mu = PTHREAD_MUTEX_INITIALIZER};
 static pthread_once_t g_motion_once = PTHREAD_ONCE_INIT;
 static motion_map g_motion_map; static float g_motion_gain = 0.5f; static int g_motion_off, g_motion_log, g_phone_mode;

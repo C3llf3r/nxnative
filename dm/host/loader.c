@@ -37,11 +37,16 @@ static void create_keys(void) {
 
 // K slot check: the pthread TSD layout is fixed, slot = tpidrro_el0 + 8*key
 static void tsd_check(void) {
+#if defined(_WIN32) || !defined(__aarch64__)
+    pthread_setspecific(g_key18, (void *)0x1234);
+    pthread_setspecific(g_key18, 0);
+#else
     pthread_setspecific(g_key18, (void *)0x1234);
     uint64_t base; __asm__ volatile("mrs %0, tpidrro_el0" : "=r"(base));
     uint64_t off = *(uint64_t *)(g_mod[0].base + g_mod[0].key_page_off + g_mod[0].key_idx[KEY_K18] * 8);
     if (((uint64_t *)(base & ~7ull))[off / 8] != 0x1234) die("TSD layout mismatch");
     pthread_setspecific(g_key18, 0);
+#endif
 }
 
 static void build_symhash(module_t *m);

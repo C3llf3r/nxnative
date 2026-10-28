@@ -112,7 +112,11 @@ HLE_FORCE("_ZNK2nn3mii8Database6ExportEPvm", "mii:u service; nothing to export",
 // The first 12 bytes of each header are not read
 enum { MII_TEX_SIZE = 0x64 + 0x1c * 327, MII_SHAPE_TABLES = 0x6c + 0x58 * 857 + 0x48 * 132 + 0x24 * 12, MII_MESH_AT = 0x14de0, MII_MESH = 0x20 };
 _Static_assert(MII_TEX_SIZE == 0x2428 && MII_SHAPE_TABLES == 0x14dd4, "MiiModel stand-in layout");
+#if defined(_MSC_VER) && !defined(__clang__)
+static const uint8_t mii_mesh_z[] = {0x78, 0x01, 0x01, MII_MESH, 0, (uint8_t)~MII_MESH, 0xff, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0x00, MII_MESH, 0x00, 0x01};
+#else
 static const uint8_t mii_mesh_z[] = {0x78, 0x01, 0x01, MII_MESH, 0, (uint8_t)~MII_MESH, 0xff, [7 ... 7 + MII_MESH - 1] = 0, 0x00, MII_MESH, 0x00, 0x01};   // zlib: stored block, Adler-32 of 32 zeros
+#endif
 enum { MII_SHAPE_SIZE = MII_MESH_AT + sizeof mii_mesh_z };
 static void mii_shapes(uint8_t *b) {
     for (int i = 0; i < 857; i++) {

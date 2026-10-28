@@ -95,7 +95,8 @@ static uint8_t g_seen[256];
 // g_map_lock is held over a whole lookup + check + change (and over QueryMemory's reads): map_find's index is only valid under it, since map_del moves the last entry into the freed slot.
 // The lock used to cover only the add and the delete, so two threads unmapping at once (stacks of exiting threads) could delete through a stale index and drop another live mapping
 #define MAX_MAP 4096
-static struct { uint64_t base, size, src; uint32_t state; } g_map[MAX_MAP];
+typedef struct { uint64_t base, size, src; uint32_t state; } map_entry_t;
+static map_entry_t g_map[MAX_MAP];
 static int g_nmap;
 static pthread_mutex_t g_map_lock = PTHREAD_MUTEX_INITIALIZER;
 static int map_find(uint64_t a, uint64_t n) {       // returns a 1-based index, 0 = no overlap; caller holds g_map_lock
@@ -104,7 +105,7 @@ static int map_find(uint64_t a, uint64_t n) {       // returns a 1-based index, 
 }
 static void map_add(uint64_t b, uint64_t n, uint64_t src, uint32_t st) {   // caller holds g_map_lock
     if (g_nmap >= MAX_MAP) die("mapping table full");
-    g_map[g_nmap++] = (typeof(g_map[0])){b, n, src, st};
+    g_map[g_nmap++] = (map_entry_t){b, n, src, st};
 }
 static void map_del(int i) { g_map[i] = g_map[--g_nmap]; }   // caller holds g_map_lock
 

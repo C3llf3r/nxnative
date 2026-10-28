@@ -47,11 +47,15 @@ static void flags_init(void) {
 
 // Zero point of the boot timeline = process creation time (p_starttime from sysctl KERN_PROC_PID, wall clock) converted to the now_ns monotonic time base; same definition on Mac / iOS
 static uint64_t proc_start_mono_ns(void) {
+#if defined(_WIN32)
+    return now_ns();
+#else
     struct kinfo_proc kp; size_t n = sizeof kp; int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
     uint64_t mono = now_ns(); struct timeval tv; gettimeofday(&tv, NULL);
     if (sysctl(mib, 4, &kp, &n, NULL, 0) || !n) return mono;
     int64_t age = (int64_t)(tv.tv_sec - kp.kp_proc.p_starttime.tv_sec) * 1000000000ll + (tv.tv_usec - kp.kp_proc.p_starttime.tv_usec) * 1000ll;
     return age > 0 ? mono - (uint64_t)age : mono;
+#endif
 }
 
 // Host loading (independent of UIKit / Metal): read the NSO, relocate, forced take-over, probes / tick gate / keys, start prefetch. By default it runs synchronously in main;

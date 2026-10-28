@@ -102,7 +102,8 @@ static void probe_dump_once(void) {
     char *mod = strtok(spec, ":"), *o = strtok(NULL, ":"), *n = strtok(NULL, ":"), *f = strtok(NULL, ":");
     module_t *m = NULL; for (int i = 0; i < g_nmod; i++) if (mod && !strcmp(g_mod[i].name, mod)) m = &g_mod[i];
     if (!m || !o || !n) { LOG("DM_PROBE_DUMP format: module:offset:length[:file]"); return; }
-    char def[512]; snprintf(def, sizeof def, "%s%s/run/platform/probe_dump.bin", getenv("DM_ROOT") ?: getenv("HOME"), getenv("DM_ROOT") ? "" : "/dm-work");
+    const char *dm_r = getenv("DM_ROOT");
+    char def[512]; snprintf(def, sizeof def, "%s%s/run/platform/probe_dump.bin", dm_r ? dm_r : getenv("HOME"), dm_r ? "" : "/dm-work");
     FILE *fp = fopen(f ? f : def, "wb"); if (!fp) return;
     fwrite(m->base + strtoull(o, 0, 16), 1, strtoull(n, 0, 16), fp); fclose(fp);
     LOG("probe dump %s+%s length %s → %s", mod, o, n, f ? f : def);

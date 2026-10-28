@@ -113,7 +113,10 @@ int main(void) {
     if (!commit) return 1;
     const char *one[] = {"save"};
     char root[1024], save[1100], other[1100], path[1200], bpath[1200];
-    snprintf(root, sizeof root, "%s/list-commit.XXXXXX", getenv("TMPDIR") ?: "/private/tmp");
+    const char *tmp = getenv("TMPDIR");
+    if (!tmp) tmp = getenv("TEMP");
+    if (!tmp) tmp = ".";
+    snprintf(root, sizeof root, "%s/list-commit.XXXXXX", tmp);
     if (!mkdtemp(root)) return 2;
     snprintf(save, sizeof save, "%s/save", root); mkdir(save, 0755);
     snprintf(path, sizeof path, "%s/a", save); put(path, "old"); setenv("DM_SAVE", save, 1);

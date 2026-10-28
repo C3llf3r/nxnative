@@ -6,6 +6,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <time.h>
+#define timegm _mkgmtime
+#ifndef _LOCALTIME_R_DEFINED
+#define _LOCALTIME_R_DEFINED
+static inline struct tm *localtime_r(const time_t *timep, struct tm *result) {
+    return localtime_s(result, timep) == 0 ? result : NULL;
+}
+static inline struct tm *gmtime_r(const time_t *timep, struct tm *result) {
+    return gmtime_s(result, timep) == 0 ? result : NULL;
+}
+#endif
+#endif
 #include "game_profile.h"   // constants of the current game profile (generated from dm/games/<id>/game.tsv, chosen by the Makefile's GAME)
 
 // Explicit host work does not occupy a guest core (Metal submission, or a blocked native codec lock). A contended host mutex must count as blocked: a signal's same-core handoff

@@ -1,3 +1,21 @@
+#if defined(_WIN32)
+#include "hle.h"
+#include "hle_movie_avc.h"
+
+struct mavc {
+    int dummy;
+};
+
+mavc *mavc_new(void) { return (mavc *)calloc(1, sizeof(mavc)); }
+void mavc_free(mavc *a) { free(a); }
+void mavc_param_sets(mavc *a, const uint8_t *p, size_t n) { (void)a; (void)p; (void)n; }
+void mavc_avcc(mavc *a, const uint8_t *p, size_t n) { (void)a; (void)p; (void)n; }
+int mavc_decode(mavc *a, const uint8_t *p, int n, int64_t pts_us) { (void)a; (void)p; (void)n; (void)pts_us; return 0; }
+int mavc_take(mavc *a, int flush, uint8_t *nv12, int w, int h, int64_t *pts_us) { (void)a; (void)flush; (void)nv12; (void)w; (void)h; (void)pts_us; return 0; }
+int mavc_queued(const mavc *a) { (void)a; return 0; }
+void mavc_set_rgba(mavc *a) { (void)a; }
+void mavc_drop(mavc *a) { (void)a; }
+#else
 // H.264 (AVC) decoding for the movie decoder (hle_movie.c), on Apple's VideoToolbox (the hardware decoder on the Mac and the iPhone).
 // Super Mario Odyssey's 44 movies are MP4 / H.264 (the hint videos in its tutorial boxes, the kingdom travel videos): 41 High or Main profile with B-frames, 3 Baseline.
 // The SDK's demuxer hands over one access unit per packet with Annex B start codes; SPS / PPS come in Configure's csd-0 / csd-1 (as with Android's MediaCodec) and may also appear in the stream.
@@ -141,3 +159,5 @@ int mavc_take(mavc *a, int flush, uint8_t *dst, int w, int h, int64_t *pts_us) {
     CVPixelBufferRelease(pb);
     return 1;
 }
+
+#endif

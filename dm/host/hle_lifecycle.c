@@ -2,11 +2,37 @@
 // Pause audio, suspend graphics (wait for in-flight NVN calls to end and drain GPU work), then _exit(0); a 1.5 s fallback goes straight to _exit(0).
 // The default action also exits in about 0.08 s (exit code 143); the value of this function is stopping background threads in order, exit code 0, and giving the iOS lifecycle callback an entry.
 #include "hle.h"
-#include <dispatch/dispatch.h>
-#include <stdatomic.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <unistd.h>
+
 void hlecount_flush(void);
+
+#if defined(_WIN32)
+
+void dm_host_shutdown(const char *why) {
+    static _Atomic int once; if (atomic_exchange(&once, 1)) return;
+    uint64_t t0 = now_ns(); LOG("received %s: graceful exit", why);
+    hlecount_flush();                               // DM_HLECOUNT: _exit does not run atexit, write a copy here
+    dm_audio_suspend(1);
+    dm_gfx_suspend(1);
+    LOG("graceful exit done (%.3f s)", (now_ns() - t0) / 1e9);
+    _exit(0);
+}
+
+static BOOL WINAPI console_ctrl_handler(DWORD ctrlType) {
+    (void)ctrlType;
+    dm_host_shutdown("Ctrl-C / Close");
+    return TRUE;
+}
+
+void dm_term_install(void) {
+    SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+}
+
+#else
+#include <dispatch/dispatch.h>
+
 void dm_host_shutdown(const char *why) {
     static _Atomic int once; if (atomic_exchange(&once, 1)) return;
     uint64_t t0 = now_ns(); LOG("received %s: graceful exit", why);
@@ -25,3 +51,4 @@ void dm_term_install(void) {
     dispatch_source_set_event_handler(src, ^{ dm_host_shutdown("SIGTERM"); });
     dispatch_resume(src);
 }
+#endif

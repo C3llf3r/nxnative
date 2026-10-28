@@ -3,8 +3,10 @@
 // destruction and address / handle reuse always happen before the first tick.
 #include "../hle_thread.c"
 #include <assert.h>
+#if !defined(_WIN32)
 #include <sys/resource.h>
 #include <sys/wait.h>
+#endif
 #include <unistd.h>
 
 static void *(*jobs[32])(void *);
@@ -118,11 +120,42 @@ static void host_signal(void) {
     // Guest callers retain lazy creation for service events not yet bound.
     hle_signal_system_event(&ev); assert(signalled(&ev)); destroy_event(&ev);
 }
-int main(void) {
+int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
+#if !defined(_WIN32)
     struct rlimit lim = {0, 0}; setrlimit(RLIMIT_CORE, &lim);
+#endif
     void (*tests[])(void) = {duplicate, capacity, reuse, rebind, host_signal};
     const char *names[] = {"duplicate vi registration", "rapid vi event replacement", "storage and handle reuse by another service", "vi rebind at reused storage", "host skip and guest lazy binding"};
+#if defined(_WIN32)
+    if (argc > 1) {
+        int idx = atoi(argv[1]);
+        setenv("DM_VSYNC_HZ", "60", 1);
+        svc_thread_main_init();
+        tests[idx]();
+        return 0;
+    }
+    int failed = 0;
+    char exe[MAX_PATH];
+    GetModuleFileNameA(NULL, exe, sizeof(exe));
+    for (unsigned i = 0; i < sizeof tests / sizeof *tests; i++) {
+        char cmd[MAX_PATH + 32];
+        snprintf(cmd, sizeof(cmd), "\"%s\" %u", exe, i);
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi = { 0 };
+        BOOL ok_spawn = CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+        assert(ok_spawn);
+        WaitForSingleObject(pi.hProcess, 10000);
+        DWORD exit_code = 1;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        int ok = (exit_code == 0);
+        failed |= !ok;
+        printf("%s: %s\n", ok ? "PASS" : "FAIL", names[i]);
+    }
+    return failed;
+#else
     int failed = 0;
     for (unsigned i = 0; i < sizeof tests / sizeof *tests; i++) {
         pid_t pid = fork(); assert(pid >= 0);
@@ -132,4 +165,5 @@ int main(void) {
         printf("%s: %s\n", ok ? "PASS" : "FAIL", names[i]);
     }
     return failed;
+#endif
 }

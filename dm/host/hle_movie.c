@@ -133,7 +133,7 @@ static void md_event(mdec_t *d, int i) {   // 0 input 1 output 2 format 3 error
     void *live = p;
     if (!p || !ev_ok(p)) p = d->ev[i];
     if (p) G.signal(p);
-    else if (live) { static _Atomic int red; if (red++ < 8) LOG("[RED] movie: decoder %p event %d not delivered: the client's entry %p is not an event", (void *)d, i, live); }
+    else if (live) { static _Atomic(int) red; if (red++ < 8) LOG("[RED] movie: decoder %p event %d not delivered: the client's entry %p is not an event", (void *)d, i, live); }
 }
 // Deferred events: "input available" after Start / Flush. The SDK's decoder signals it asynchronously from its own codec thread; Metroid Dread calls InitializeMultiWaitHolder before RegisterClientEvents
 // and only later links the holders into its MultiWait. Signalled synchronously inside Start, the holders were not linked yet and SignalEvent crashed in MultiWaitImpl::NotifyAndWakeupThread on a null MultiWait (0x20)
@@ -182,10 +182,19 @@ static int md_trace_all(void) { static int on = -1; if (on < 0) on = getenv("DM_
 #define MD_TRACE(d, slot, fmt, ...) do { unsigned long n_ = ++(d)->ncall[slot]; if (md_trace_all()) LOG("[movie] [%p] [%p] " fmt, (void *)pthread_self(), (void *)(d), ##__VA_ARGS__); \
                                          else if (n_ <= 12 || !(n_ & (n_ - 1))) LOG("[movie] " fmt, ##__VA_ARGS__); } while (0)
 
+static inline unsigned rb_read(const uint8_t *p, int n, int *bit, int k) {
+    unsigned v = 0;
+    for (int i = 0; i < k; i++, (*bit)++) {
+        if ((*bit) >> 3 >= n) return (unsigned)-1;
+        v = (v << 1) | ((p[(*bit) >> 3] >> (7 - ((*bit) & 7))) & 1);
+    }
+    return v;
+}
+
 // VP9 key frame uncompressed header → width and height (VP9 spec 6.2: frame_marker, profile, show_existing_frame, frame_type, show_frame, error_resilient_mode, sync code, color config, frame_size)
 static int vp9_size(const uint8_t *p, int n, int *w, int *h) {
     int bit = 0;
-    #define RB(k) ({ unsigned v_ = 0; for (int i_ = 0; i_ < (k); i_++, bit++) { if (bit >> 3 >= n) return 0; v_ = v_ << 1 | (p[bit >> 3] >> (7 - (bit & 7)) & 1); } v_; })
+    #define RB(k) rb_read(p, n, &bit, k)
     if (RB(2) != 2) return 0;
     unsigned lo = RB(1), hi = RB(1), prof = hi << 1 | lo;
     if (prof == 3) RB(1);

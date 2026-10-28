@@ -1,19 +1,31 @@
 // HLE common: register host implementations by Switch mangled name.
-// Note the differences between Apple AAPCS64 and Switch: Apple requires the caller to extend <32-bit arguments (bool/char/short), Switch code does not extend ⇒
-// such parameters are always declared as int/unsigned and truncated by ourselves. Variadic arguments go on the stack on Apple and in registers on Switch ⇒ variadic functions cannot use C's "..." directly.
+// Note the differences between Apple AAPCS64 and Switch: Apple requires the caller to extend <32-bit arguments (bool/char/short), Switch code does not extend =>
+// such parameters are always declared as int/unsigned and truncated by ourselves. Variadic arguments go on the stack on Apple and in registers on Switch => variadic functions cannot use C's "..." directly.
 #pragma once
 #include "dm.h"
+
 typedef struct { const char *name; void *fn; } hle_ent;
+
+#if defined(_MSC_VER)
+#pragma section(".swhle", read)
+#pragma section(".swforce", read)
+
+#define HLE(mangled, ret, cname, ...)                                                             \
+    static ret cname(__VA_ARGS__);                                                                \
+    __declspec(allocate(".swhle")) const hle_ent hle_ent_##cname = {mangled, (void *)cname};      \
+    static ret cname(__VA_ARGS__)
+#else
 #define HLE(mangled, ret, cname, ...)                                                             \
     static ret cname(__VA_ARGS__);                                                                \
     __attribute__((used, section("__DATA,swhle"))) static const hle_ent hle_ent_##cname = {mangled, (void *)cname}; \
     static ret cname(__VA_ARGS__)
+#endif
 
 typedef uint32_t Result;   // nn::Result: w0, 0 = success
 #define RES_OK 0u
 #define RES_FAIL 0x2A2u      // Generic failure (cut features such as networking uniformly return this)
 
-// Guest address → host object side table
+// Guest address -> host object side table
 void *objmap_get(const void *guest);
 void objmap_put(const void *guest, void *host);
 void *objmap_del(const void *guest);
@@ -33,10 +45,24 @@ void guest_clock_read_wait(void);     // A guest read of the system counter: wai
 // Used only for the service-layer nn:: (service clients of fs/oe/aoc/pctl...); the SDK's libc++ and nn::os internals do not go into this table.
 // Every entry must state the reason for the takeover; an entry in the table that no module references makes loading report a failure and abort (a wrong list must fail loudly).
 typedef struct { const char *name; void *fn; const char *why; } hle_force_ent;
+
+#if defined(_MSC_VER)
+#define HLE_FORCE_IMPL(mangled, why, ret, cname, ...)                                             \
+    static ret cname(__VA_ARGS__);                                                                \
+    static __declspec(allocate(".swforce")) const hle_force_ent hle_force_##cname = {mangled, (void *)cname, why}; \
+    static ret cname(__VA_ARGS__)
+
+#define HLE_FORCE(mangled, why, ret, cname, ...)                                                   \
+    HLE_FORCE_IMPL(mangled, why, ret, cname, __VA_ARGS__)
+
+#define HLE_FORCE_BIG(mangled, why, ret, cname, ...)                                               \
+    HLE_FORCE_IMPL(mangled, why, ret, cname, __VA_ARGS__)
+#else
 #define HLE_FORCE(mangled, why, ret, cname, ...)                                                   \
     static ret cname(__VA_ARGS__);                                                                \
     __attribute__((used, section("__DATA,swforce"))) static const hle_force_ent hle_force_##cname = {mangled, (void *)cname, why}; \
     static ret cname(__VA_ARGS__)
+
 // Same as above, but the implementation runs on this thread's big host stack (hle_bigstack.c): what is registered is a stub generated at compile time (the implementation's address goes into x16, then a jump to dm_bigstack_enter).
 // For take-overs with large stack use (the file system sizes its buffers by PATH_MAX): a game thread's stack can be as small as 8 KB. Only register arguments are carried over (<= 8 integer, <= 8 floating point); not for variadic functions
 #define HLE_FORCE_BIG(mangled, why, ret, cname, ...)                                               \
@@ -46,6 +72,7 @@ typedef struct { const char *name; void *fn; const char *why; } hle_force_ent;
             "    adrp x16, _" #cname "@PAGE\n    add x16, x16, _" #cname "@PAGEOFF\n    b _dm_bigstack_enter\n"); \
     __attribute__((used, section("__DATA,swforce"))) static const hle_force_ent hle_force_##cname = {mangled, (void *)(uintptr_t)cname##_bs, why}; \
     static ret cname(__VA_ARGS__)
+#endif
 
 // Operation mode (0 handheld / 1 docked): owned by hle_oe.c, and the hid controller style follows it; the front end can switch it at runtime
 int dm_opmode(void);

@@ -36,6 +36,7 @@ uintptr_t dm_bigstack_top(uintptr_t sp) {
     return (uintptr_t)top;
 }
 
+#if !defined(_MSC_VER)
 // x16 = implementation. Frame (on the original stack, 0xa0 bytes): +0x00 x0-x8, x16, +0x50 d0-d7, +0x90 x29 / x30. After the switch the original sp is stored at the new stack top and restored when the implementation returns
 __asm__(
     ".text\n"
@@ -81,3 +82,6 @@ __asm__(
     "    ldp x29, x30, [sp, #0x90]\n"
     "    add sp, sp, #0xa0\n"
     "    br x16\n");
+#else
+void dm_bigstack_enter(void) {}
+#endif
