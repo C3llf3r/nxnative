@@ -1,6 +1,6 @@
 # nxnative
 
-Play your own Nintendo Switch games natively on iPhone and iPad. Bring your game (its NSP files) and your `prod.keys`; one script turns them into an IPA that you sideload.
+Play your own Nintendo Switch games natively on iOS, macOS, Windows, and Android. Bring your game and run directly on your hardware with native execution.
 
 It is not an emulator: the game's own code runs directly on the Apple chip, with Switch graphics rebuilt on Metal. Nothing from any game is in this repository, and the project is not affiliated with Nintendo or any game publisher.
 
@@ -220,6 +220,66 @@ The IPA appears in the same folder (here `~/Games/MarioWonder/SMBWMobile.ipa`). 
 To play on a Mac with Apple silicon instead, `--platform mac-app` packs a Mac app of the game that you open from Finder ([A Mac app](docs/development.md#a-mac-app)). It shows the game's settings in a window before the game starts ([The Mac settings window](docs/settings.md#the-mac-settings-window)).
 
 With an Apple developer account you can instead build and install from Xcode: `--prepare-xcode` makes an Xcode project for the game rather than an IPA ([Build and run on a device with Xcode](docs/development.md#build-and-run-on-a-device-with-xcode)).
+
+## Windows (Build & Run)
+
+nxnative runs natively on 64-bit Windows (Windows 10 / 11 x64) using MSVC.
+
+### Requirements
+- [Visual Studio 2022](https://visualstudio.microsoft.com/) or Build Tools with C++ Desktop Development (MSVC with C11 atomics support).
+- [CMake](https://cmake.org/) (3.20 or newer) and [Ninja](https://ninja-build.org/).
+- Python 3.10+ with `capstone`, `lz4`, `fonttools`.
+
+### Build
+From the Visual Studio x64 Developer Command Prompt (or PowerShell after initializing `vcvars64.bat`):
+
+```cmd
+cmake -B build -G Ninja -DGAME=010015100B514000
+ninja -C build
+```
+
+This compiles `build/dmhost.exe` and the full suite of Host subsystem tests.
+
+### Run
+Pass the directory containing your unpacked game files (rewritten `.nso` modules and `romfs/` folder):
+
+```cmd
+.\build\dmhost.exe "path\to\unpacked_game_folder"
+```
+
+---
+
+## Android (Build & Run)
+
+Because Nintendo Switch and Android devices share the **ARM64 (aarch64)** CPU architecture, Switch game code executes directly on the mobile CPU at full native speed without JIT emulation. Graphics are presented via Vulkan.
+
+### Requirements
+- Android device with an ARM64 processor (Snapdragon, MediaTek Dimensity, Google Tensor, Exynos), Android 9.0+ (API 28+), and Vulkan 1.1+ support.
+- [Android Studio](https://developer.android.com/studio) or Android NDK (r26+), CMake 3.22+, and JDK 17+.
+
+### Build APK
+**Option A: Android Studio (Recommended)**
+1. Open the `android/` directory in Android Studio.
+2. Allow Gradle to synchronize dependencies and configure NDK CMake.
+3. Select **Build > Build Bundle(s) / APK(s) > Build APK(s)** (or click **Run** to deploy to a connected device).
+
+**Option B: Command Line (Gradle)**
+```bash
+cd android
+./gradlew assembleDebug
+```
+The compiled APK will be generated at:
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+### Install & Play
+1. **Install the APK** using ADB:
+   ```bash
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+2. **Transfer your game files**: Copy the unpacked Switch game folder (`main`, `sdk`, and `romfs/`) to your device storage (e.g., `/sdcard/nxnative/<GameTitle>/`).
+3. **Launch the app**: Open **nxnative**, tap **"Select Game Folder"**, select your game directory, and play. The app includes a responsive touch overlay (D-Pad, A/B/X/Y, L/R) and automatically maps connected Bluetooth or USB gamepads (Xbox, PlayStation DualSense, Switch Pro Controller, Razer Kishi).
+
+---
 
 ## Play
 
