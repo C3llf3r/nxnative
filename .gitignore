@@ -16,3 +16,13 @@ build/
 *.pdb
 *.lib
 juegos/
+
+# .NET / C# build outputs
+bin/
+obj/
+
+# Android / Gradle artifacts
+.gradle/
+local.properties
+*.apk
+*.aab
